@@ -63,6 +63,8 @@ RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
 COPY . /usr/src/app
-RUN cd matrix-hal-examples && ls && mkdir build && cd build && cmake .. && ls && make -j4
+RUN ls && cd matrix-hal-examples && ls && mkdir build
+RUN cd matrix-hal-examples/build && cmake .. 
+RUN cd matrix-hal-examples/build && ls && make -j4
 
 CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && bash start.sh
