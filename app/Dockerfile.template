@@ -38,6 +38,17 @@ ENV INITSYSTEM on
 # Setting up the user application
 WORKDIR /usr/src/app
 COPY start.sh ./
+COPY matrix-kernel-modules ./
+
+###############################
+# Build Matrix kernel modules #
+###############################
+
+RUN apt-get update && apt-get install -y curl wget build-essential libelf-dev awscli bc flex libssl-dev python bison
+ENV VERSION '2.50.1+rev1.prod'
+RUN ./build.sh %%BALENA_MACHINE_NAME%% $VERSION matrixio-kernel-modules/src
+
+###############################
 
 # use apt—get if you need to install dependencies, # for instance if you need ALSA sound utils, just uncomment the lines below. # RUN apt—get update && apt—get install —yq \ # alsa—utils li$
 RUN curl https://apt.matrix.one/doc/apt-key.gpg | apt-key add - && \
@@ -67,4 +78,4 @@ RUN ls && cd matrix-hal-examples && ls && mkdir build
 RUN cd matrix-hal-examples/build && cmake .. 
 RUN cd matrix-hal-examples/build && ls && make -j4
 
-CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && bash start.sh
+CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && bash run.sh && bash start.sh
