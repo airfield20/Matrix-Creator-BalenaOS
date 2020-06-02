@@ -1,0 +1,98 @@
+FROM balenalib/%%BALENA_MACHINE_NAME%%-debian-node:latest
+
+
+#################
+# Install Systemd
+#################
+
+ENV container docker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+		systemd-sysv \
+	&& rm -rf /var/lib/apt/lists/*
+
+# We never want these to run in a container
+# Feel free to edit the list but this is the one we used
+RUN systemctl mask \
+    dev-hugepages.mount \
+    sys-fs-fuse-connections.mount \
+    sys-kernel-config.mount \
+
+    display-manager.service \
+    getty@.service \
+    systemd-logind.service \
+    systemd-remount-fs.service \
+
+    getty.target \
+    graphical.target
+
+COPY systemd/entry.sh /usr/bin/entry.sh
+COPY systemd/balena.service /etc/systemd/system/balena.service
+
+RUN systemctl enable /etc/systemd/system/balena.service
+
+STOPSIGNAL 37
+ENTRYPOINT ["/usr/bin/entry.sh"]
+ENV INITSYSTEM on
+
+
+######################
+# Finish setup systemd
+######################
+
+#######################################
+# Install Matrix Creator Dependencies #
+#######################################
+
+# use apt—get if you need to install dependencies, # for instance if you need ALSA sound utils, just uncomment the lines below. # RUN apt—get update && apt—get install —yq \ # alsa—utils li$
+RUN echo "" >/boot/cmdline.txt && \
+ echo "dtparam=spi=on" >/boot/config.txt && \
+ dpkg --add-architecture armhf && \
+ apt-get update && apt-get upgrade && \
+ apt-get install --no-install-recommends apt-utils && \
+ apt-get -y install python3-pip python-pip python-setuptools python3-setuptools && \
+ apt-get -y install lsb-release apt-transport-https && \
+ apt-get -y install gcc-8-base:armhf libc6:armhf libgcc1:armhf libtinfo5:armhf libfftw3-dev libncurses5 && \
+ apt-get update && apt-get upgrade
+
+RUN wget http://ftp.us.debian.org/debian/pool/main/r/readline6/libreadline6_6.3-8+b3_armhf.deb && \
+dpkg -i libreadline6_6.3-8+b3_armhf.deb
+
+RUN pip install wheel && pip3 install wheel
+
+RUN apt-get install cmake g++ git build-essential libfftw3-dev libgflags-dev && \
+ apt-get install sox alsa-utils && \
+ apt-get install python3-dev
+
+
+###############################
+# Build Matrix kernel modules #
+###############################
+
+RUN apt-get update && apt-get install -y curl wget build-essential libelf-dev awscli bc flex libssl-dev python bison
+
+# Setting up the user application
+WORKDIR /usr/src/app
+COPY . /usr/src/app
+
+ENV VERSION '2.50.1+rev1.prod'
+RUN ./build.sh %%BALENA_MACHINE_NAME%% $VERSION matrixio-kernel-modules/src
+
+
+##################################
+# Install WiringPi for Pi 4 arm64#
+##################################
+RUN cd wiringPi-arm64 && ./build
+
+
+####################
+# Build Matrix Hal #
+####################
+
+
+RUN cd matrix-creator-hal && \
+mkdir build && \
+cd build && \
+cmake .. && \
+make -j4 && make install
+
+CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && bash run.sh && bash start.sh
