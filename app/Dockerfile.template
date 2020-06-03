@@ -54,10 +54,38 @@ RUN echo "" >/boot/cmdline.txt && \
 
 RUN pip install wheel && pip3 install wheel
 
-RUN apt-get install cmake g++ git build-essential libfftw3-dev libgflags-dev && \
+RUN apt-get install cmake g++ git build-essential && \
  apt-get install sox alsa-utils && \
  apt-get install python3-dev
 
+#################################################
+# Manual install of matrixio deb files in armhf #
+#################################################
+#Add armhf to apt
+RUN dpkg --add-architecture armhf && \
+    sed -i 's/deb http:/deb [arch=armhf,arm64] http:/g' /etc/apt/sources.list
+
+#Add armhf version of matrix repositories to apt
+RUN apt-get install lsb-release apt-transport-https && \
+    curl https://apt.matrix.one/doc/apt-key.gpg | sudo apt-key add - && \
+    echo "deb [arch=armhf] https://apt.matrix.one/raspbian $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/matrixlabs.list && \
+    apt-get update
+
+# Setting up the user application
+WORKDIR /usr/src/app
+COPY . /usr/src/app
+
+#Install armhf versions of libreadline deps and manually install libreadline6 from debs folder
+RUN apt-get install multiarch-support gcc-8-base:armhf libgcc1:armhf libc6:armhf libtinfo5:armhf && \
+    dpkg -i debs/libreadline6_6.3-8+b3_armhf.deb
+
+#Manually install wiringpi
+RUN dpkg -i debs/wiringpi_2.50_armhf.deb
+
+RUN apt-get install matrixio-openocd matrixio-xc3sprog libfftw3-single3:armhf libfftw3-dev:armhf libgflags-dev:armhf libfftw3-double3:armhf libgomp1:armhf libgflags2.2:armhf && \
+    dpkg -i debs/libmatrixio-creator-hal_0.3.8_armhf.deb && \
+    apt-get install libncurses5:armhf && \
+    dpkg -i debs/matrixio-creator-init_0.4.17_armhf.deb
 
 ###############################
 # Build Matrix kernel modules #
@@ -65,29 +93,15 @@ RUN apt-get install cmake g++ git build-essential libfftw3-dev libgflags-dev && 
 
 RUN apt-get update && apt-get install -y curl wget build-essential libelf-dev awscli bc flex libssl-dev python bison
 
-# Setting up the user application
-WORKDIR /usr/src/app
-COPY . /usr/src/app
-
 ENV VERSION '2.50.1+rev1.prod'
 RUN ./build.sh %%BALENA_MACHINE_NAME%% $VERSION matrixio-kernel-modules/src
 
+#############################
+# Build Matrix hal examples #
+#############################
 
-##################################
-# Install WiringPi for Pi 4 arm64#
-##################################
-RUN cd wiringPi-arm64 && ./build
-
-
-####################
-# Build Matrix Hal #
-####################
-
-
-RUN cd matrix-creator-hal && \
-mkdir build && \
-cd build && \
-cmake .. && \
-make -j4 && make install
+RUN ls && cd matrix-hal-examples && ls && mkdir build
+RUN cd matrix-hal-examples/build && cmake .. 
+RUN cd matrix-hal-examples/build && ls && make -j4
 
 CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && bash run.sh && bash start.sh
