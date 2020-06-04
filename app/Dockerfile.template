@@ -55,9 +55,14 @@ RUN echo "" >/boot/cmdline.txt && \
 RUN pip install wheel && pip3 install wheel
 
 RUN apt-get install cmake g++ git build-essential libfftw3-dev libgflags-dev && \
- apt-get install sox alsa-utils && \
+ apt-get install sox alsa-utils alsa-base libasound2 && \
  apt-get install python3-dev
 
+RUN apt-get install lsb-release apt-transport-https && \
+    curl https://apt.matrix.one/doc/apt-key.gpg | sudo apt-key add - && \
+    echo "deb https://apt.matrix.one/raspbian $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/matrixlabs.list && \
+    apt-get update && \
+    apt-get install libmatrixio-creator-hal matrixio-creator-init
 
 ###############################
 # Build Matrix kernel modules #
@@ -69,25 +74,16 @@ RUN apt-get update && apt-get install -y curl wget build-essential libelf-dev aw
 WORKDIR /usr/src/app
 COPY . /usr/src/app
 
-ENV VERSION '2.50.1+rev1.prod'
+
+ENV VERSION '2.50.4+rev1.prod'
+#RUN ./build.sh --list
 RUN ./build.sh %%BALENA_MACHINE_NAME%% $VERSION matrixio-kernel-modules/src
 
+RUN cp /usr/src/app/matrixio-kernel-modules/misc/matrixio.conf /etc/modules-load.d/ && \
+    cp /usr/src/app/matrixio-kernel-modules/misc/asound.conf /etc/ && \
+    cp /usr/src/app/matrixio-kernel-modules/kernel-modifications.txt /usr/share/matrixlabs/matrixio-devices/config/
 
-##################################
-# Install WiringPi for Pi 4 arm64#
-##################################
-RUN cd wiringPi-arm64 && ./build
+ENV BALENA_HOST_CONFIG_dtoverlay matrixio
 
-
-####################
-# Build Matrix Hal #
-####################
-
-
-RUN cd matrix-creator-hal && \
-mkdir build && \
-cd build && \
-cmake .. && \
-make -j4 && make install
-
-CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && bash run.sh && bash start.sh
+CMD modprobe spi-bcm2835 && modprobe snd_bcm2835 && modprobe snd-dummy && modprobe snd_pcm && \
+    modprobe snd_soc_core && modprobe industrialio && bash run.sh && bash start.sh
