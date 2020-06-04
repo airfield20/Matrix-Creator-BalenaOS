@@ -81,7 +81,7 @@ RUN ./build.sh %%BALENA_MACHINE_NAME%% $VERSION matrixio-kernel-modules/src
 
 RUN cp /usr/src/app/matrixio-kernel-modules/misc/matrixio.conf /etc/modules-load.d/ && \
     cp /usr/src/app/matrixio-kernel-modules/misc/asound.conf /etc/ && \
-    cp /usr/src/app/matrixio-kernel-modules/kernel-modifications.txt /usr/share/matrixlabs/matrixio-devices/config/
+    cp /usr/src/app/matrixio-kernel-modules/kernel_modifications.txt /usr/share/matrixlabs/matrixio-devices/config/
 
 ENV BALENA_HOST_CONFIG_dtoverlay matrixio
 
